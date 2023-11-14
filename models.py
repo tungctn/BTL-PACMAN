@@ -10,13 +10,13 @@ class PerceptronModel(object):
         For example, dimensions=2 would mean that the perceptron must classify
         2D points.
         """
-        self.w = nn.Parameter(1, dimensions)
+        self.arr1 = nn.Parameter(1, dimensions)
 
     def get_weights(self):
         """
         Return a Parameter instance with the current weights of the perceptron.
         """
-        return self.w
+        return self.arr1
     def run(self, x):
         """
         Calculates the score assigned by the perceptron to a data point x.
@@ -26,7 +26,7 @@ class PerceptronModel(object):
         Returns: a node containing a single number (the score)
         """
         "*** YOUR CODE HERE ***"
-        return nn.DotProduct(x,self.w)
+        return nn.DotProduct(x,self.arr1)
     def get_prediction(self, x):
         """
         Calculates the predicted class for a single data point `x`.
@@ -47,7 +47,7 @@ class PerceptronModel(object):
         while not shouldStop:
             for x, y in dataset.iterate_once(batch_size=1):
                 if not self.get_prediction(x) == nn.as_scalar(y):
-                    self.w.update(x, nn.as_scalar(y))
+                    self.arr1.update(x, nn.as_scalar(y))
                     break
             else:
                 shouldStop = True
@@ -60,7 +60,22 @@ class RegressionModel(object):
     def __init__(self):
         # Initialize your model parameters here
         "*** YOUR CODE HERE ***"
-
+        self.in_features = 10
+        self.hidden_features = 100
+        self.learning_rate = 0.3
+        self.layer_number = 3
+        self.arr1 = []
+        self.arr2 = []
+        for i in range(self.layer_number):
+            if i==0:
+                self.arr1.append(nn.Parameter(1,self.in_features))
+                self.arr2.append(nn.Parameter(1,self.in_features))
+            elif i==self.layer_number-1:
+                self.arr1.append(nn.Parameter(self.in_features,1))
+                self.arr2.append(nn.Parameter(1,1))
+            else:
+                self.arr1.append(nn.Parameter(self.in_features,self.in_features))
+                self.arr2.append(nn.Parameter(1,self.in_features))
     def run(self, x):
         """
         Runs the model for a batch of examples.
@@ -71,7 +86,15 @@ class RegressionModel(object):
             A node with shape (batch_size x 1) containing predicted y-values
         """
         "*** YOUR CODE HERE ***"
-
+        input_data = x
+        for i in range(self.layer_number):
+            fx = nn.Linear(input_data, self.arr1[i])
+            output_data = nn.AddBias(fx, self.arr2[i])
+            if i==self.layer_number-1:
+                predicted_y = output_data
+            else:
+                input_data = nn.ReLU(output_data)
+        return predicted_y
     def get_loss(self, x, y):
         """
         Computes the loss for a batch of examples.
@@ -83,13 +106,25 @@ class RegressionModel(object):
         Returns: a loss node
         """
         "*** YOUR CODE HERE ***"
-
+        predicted_y = self.run(x)
+        return nn.SquareLoss(predicted_y, y)
     def train(self, dataset):
         """
         Trains the model.
         """
         "*** YOUR CODE HERE ***"
-
+        loss_number = float('inf')
+        count = 0
+        while loss_number>=0.01:
+            for (x,y) in dataset.iterate_once(self.hidden_features):
+                loss = self.get_loss(x,y)
+                loss_number = nn.as_scalar(loss)
+                grad_wrt = nn.gradients(loss, self.arr1+self.arr2)
+                for i in range(self.layer_number):
+                    self.arr1[i].update(grad_wrt[i],-self.learning_rate)
+                    self.arr2[i].update(grad_wrt[len(self.arr1)+i],-self.learning_rate)
+                count += 1
+        print(count)
 class DigitClassificationModel(object):
     """
     A model for handwritten digit classification using the MNIST dataset.
@@ -107,7 +142,21 @@ class DigitClassificationModel(object):
     def __init__(self):
         # Initialize your model parameters here
         "*** YOUR CODE HERE ***"
-
+        self.layers = [200,500,10]
+        self.batch_size = 100
+        self.learning_rate = 0.3
+        self.arr1 = []
+        self.arr2 = []
+        for i in range(len(self.layers)):
+            if i==0:
+                self.arr1.append(nn.Parameter(784,self.layers[i]))
+                self.arr2.append(nn.Parameter(1,self.layers[i]))
+            elif i==len(self.layers)-1:
+                self.arr1.append(nn.Parameter(self.layers[i-1],10))
+                self.arr2.append(nn.Parameter(1,10))
+            else:
+                self.arr1.append(nn.Parameter(self.layers[i-1],self.layers[i]))
+                self.arr2.append(nn.Parameter(1,self.layers[i]))
     def run(self, x):
         """
         Runs the model for a batch of examples.
@@ -123,7 +172,15 @@ class DigitClassificationModel(object):
                 (also called logits)
         """
         "*** YOUR CODE HERE ***"
-
+        input_data = x
+        for i in range(len(self.layers)):
+            fx = nn.Linear(input_data, self.arr1[i])
+            output_data = nn.AddBias(fx, self.arr2[i])
+            if i==len(self.layers)-1:
+                predicted_y = output_data
+            else:
+                input_data = nn.ReLU(output_data)
+        return predicted_y
     def get_loss(self, x, y):
         """
         Computes the loss for a batch of examples.
@@ -138,13 +195,23 @@ class DigitClassificationModel(object):
         Returns: a loss node
         """
         "*** YOUR CODE HERE ***"
-
+        predicted_y = self.run(x)
+        return nn.SoftmaxLoss(predicted_y, y)
     def train(self, dataset):
         """
         Trains the model.
         """
         "*** YOUR CODE HERE ***"
-
+        accuracy = 0
+        while accuracy<0.98:
+            for (x,y) in dataset.iterate_once(self.batch_size):
+                loss = self.get_loss(x,y)
+                grad_wrt = nn.gradients(loss, self.arr1+self.arr2)
+                for i in range(len(self.layers)):
+                    self.arr1[i].update(grad_wrt[i],-self.learning_rate)
+                    self.arr2[i].update(grad_wrt[len(self.arr1)+i],-self.learning_rate)
+            accuracy = dataset.get_validation_accuracy()
+            
 class LanguageIDModel(object):
     """
     A model for language identification at a single-word granularity.
